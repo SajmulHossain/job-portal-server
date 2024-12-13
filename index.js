@@ -46,6 +46,11 @@ async function run() {
       res.send(result);
     });
 
+    app.get('/job-applications', async(req, res) => {
+      const result = await jobApplicationCollection.find().toArray();
+      res.send(result);
+    })
+
     await client.connect();
 
     await client.db("admin").command({ ping: 1 });
