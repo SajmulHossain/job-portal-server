@@ -31,7 +31,11 @@ async function run() {
       res.send(result);
     });
 
-    
+    app.post('/jobs', async(req, res) => {
+      const data = req.body;
+      const result = await jobCollection.insertOne(data);
+      res.send(result);
+    })
 
     app.get("/jobs/:id", async (req, res) => {
       const id = req.params.id;
