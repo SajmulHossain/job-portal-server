@@ -100,12 +100,33 @@ async function run() {
       res.send(result);
     });
 
+    app.get('/job-application/jobs/:job_id', async(req, res) => {
+      const jobId = req.params.job_id;
+      const query = { jobId: jobId };
+      const result = await jobApplicationCollection.find(query).toArray();
+      res.send(result);
+    })
+
     app.delete("/job-applications/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await jobApplicationCollection.deleteOne(query);
       res.send(result);
     });
+
+    app.patch('/job-application/:id', async(req, res)  => {
+      const id = req.params.id;
+      const data = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          status: data.status,
+        }
+      }
+
+      const result = await jobApplicationCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    })
 
     await client.connect();
 
