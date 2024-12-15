@@ -27,15 +27,20 @@ async function run() {
       .collection("applications");
 
     app.get("/jobs", async (req, res) => {
-      const result = await jobCollection.find().toArray();
+      const email = req.query.email;
+      let query = {};
+      if (email) {
+        query = { hr_email: email };
+      }
+      const result = await jobCollection.find(query).toArray();
       res.send(result);
     });
 
-    app.post('/jobs', async(req, res) => {
+    app.post("/jobs", async (req, res) => {
       const data = req.body;
       const result = await jobCollection.insertOne(data);
       res.send(result);
-    })
+    });
 
     app.get("/jobs/:id", async (req, res) => {
       const id = req.params.id;
@@ -49,19 +54,40 @@ async function run() {
     app.post("/job-applications", async (req, res) => {
       const application = req.body;
       const result = await jobApplicationCollection.insertOne(application);
+
+
+      const id = application.jobId;
+      const query = { _id: new ObjectId(id) };
+      const job = await jobCollection.findOne(query);
+      let newCount = 0;
+
+      if (job.applicationCount) {
+        newCount = newCount + 1;
+      } else {
+        newCount = 1;
+      }
+
+      const updatedDoc = {
+        $set: {
+          applicationCount: newCount,
+        }
+      }
+
+
+      const updatedResult = await jobCollection.updateOne(query,updatedDoc);
       res.send(result);
     });
 
-    app.get('/job-application', async(req, res) => {
+    app.get("/job-application", async (req, res) => {
       const email = req.query.email;
       const query = { applicant_email: email };
       const result = await jobApplicationCollection.find(query).toArray();
 
-      for(const application of result) {
+      for (const application of result) {
         const query = { _id: new ObjectId(application.jobId) };
         const job = await jobCollection.findOne(query);
 
-        if(job) {
+        if (job) {
           application.title = job.title;
           application.company_logo = job.company_logo;
           application.company = job.company;
@@ -72,14 +98,14 @@ async function run() {
       }
 
       res.send(result);
-    })
+    });
 
-    app.delete('/job-applications/:id', async(req, res) => {
+    app.delete("/job-applications/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await jobApplicationCollection.deleteOne(query);
       res.send(result);
-    })
+    });
 
     await client.connect();
 
