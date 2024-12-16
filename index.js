@@ -1,12 +1,36 @@
 const express = require("express");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 
 const app = express();
 const port = process.env.PORT || 3000;
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
+
+const verifyToken = (req, res, next) => {
+  const token = req.cookies.token;
+
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: "Unauthorized access" });
+    }
+    req.user = decoded;
+    next();
+  });
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.saftd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -25,6 +49,18 @@ async function run() {
     const jobApplicationCollection = client
       .db("jobPortal")
       .collection("applications");
+
+    // auth related api
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: "1h" });
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: false,
+        })
+        .send({ success: true });
+    });
 
     app.get("/jobs", async (req, res) => {
       const email = req.query.email;
@@ -55,7 +91,6 @@ async function run() {
       const application = req.body;
       const result = await jobApplicationCollection.insertOne(application);
 
-
       const id = application.jobId;
       const query = { _id: new ObjectId(id) };
       const job = await jobCollection.findOne(query);
@@ -70,17 +105,21 @@ async function run() {
       const updatedDoc = {
         $set: {
           applicationCount: newCount,
-        }
-      }
+        },
+      };
 
-
-      const updatedResult = await jobCollection.updateOne(query,updatedDoc);
+      const updatedResult = await jobCollection.updateOne(query, updatedDoc);
       res.send(result);
     });
 
-    app.get("/job-application", async (req, res) => {
+    app.get("/job-application", verifyToken, async (req, res) => {
       const email = req.query.email;
       const query = { applicant_email: email };
+
+      if (req.user.email !== email) {
+        return res.status(403).send({ massage: "forbidden access" });
+      }
+
       const result = await jobApplicationCollection.find(query).toArray();
 
       for (const application of result) {
@@ -100,12 +139,12 @@ async function run() {
       res.send(result);
     });
 
-    app.get('/job-application/jobs/:job_id', async(req, res) => {
+    app.get("/job-application/jobs/:job_id", async (req, res) => {
       const jobId = req.params.job_id;
       const query = { jobId: jobId };
       const result = await jobApplicationCollection.find(query).toArray();
       res.send(result);
-    })
+    });
 
     app.delete("/job-applications/:id", async (req, res) => {
       const id = req.params.id;
@@ -114,19 +153,22 @@ async function run() {
       res.send(result);
     });
 
-    app.patch('/job-application/:id', async(req, res)  => {
+    app.patch("/job-application/:id", async (req, res) => {
       const id = req.params.id;
       const data = req.body;
       const filter = { _id: new ObjectId(id) };
       const updatedDoc = {
         $set: {
           status: data.status,
-        }
-      }
+        },
+      };
 
-      const result = await jobApplicationCollection.updateOne(filter, updatedDoc);
+      const result = await jobApplicationCollection.updateOne(
+        filter,
+        updatedDoc
+      );
       res.send(result);
-    })
+    });
 
     await client.connect();
 
