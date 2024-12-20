@@ -9,7 +9,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: ["http://localhost:5173", "https://job-portal-sajmul.web.app"],
     credentials: true,
   })
 );
@@ -57,9 +57,19 @@ async function run() {
       res
         .cookie("token", token, {
           httpOnly: true,
-          secure: false,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
         })
         .send({ success: true });
+    });
+
+    app.post("/logout", (req, res) => {
+      res.clearCookie("token", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      });
+      send({ success: true });
     });
 
     app.get("/jobs", async (req, res) => {
